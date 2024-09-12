@@ -65,26 +65,19 @@ for i = 1:endSub
         
         for k = 1:trialNum
             % Select the final rating point based on reaction time
-            % Because of a feature in the experiment code, if the reaction
-            % time is shorter than 3.5s, in the last 0.5 seconds the
-            % experiment program would still record mouse position
+            % Because of a feature in the experiment code, 
+            % the last 0.5 seconds of each trial always recorded mouse positions
             
             % For feeling
+            % reaction time
             feelRT = csvData.event03_feel_RT(k);
             if ~isnan(feelRT)
-                if feelRT <= 3.5
-                    % sample an additional 0.5*60 = 30 times
-                    feeling_end_x(k) = rating_Trajectory{k,1}(end-30,1);
-                    feeling_end_y(k) = rating_Trajectory{k,1}(end-30,2);
-                    RT_feeling(k) = feelRT;
-                elseif feelRT > 3.5
-                    % sample an additional (4-RT)*60 times
-                    addsam = round((4-feelRT)*60);
-                    feeling_end_x(k) = rating_Trajectory{k,1}(end-addsam,1);
-                    feeling_end_y(k) = rating_Trajectory{k,1}(end-addsam,2);
-                    RT_feeling(k) = feelRT;
-                end
+                % participants provided response
+                RT_feeling(k) = feelRT;
                 RT_feeling_adj(k) = NaN;
+                end_point = round(feelRT*60);  % the index of the last mouse position
+                feeling_end_x(k) = rating_Trajectory{k, 1}(end_point, 1);
+                feeling_end_y(k) = rating_Trajectory{k, 1}(end_point, 2);
             else
                 % no recorded RT, impute the RT (RT_adj) by seeking the last "transition point"
                 RT_feeling(k) = NaN;
@@ -108,7 +101,18 @@ for i = 1:endSub
                 end
             end
             % find decision onset time
-            for l = 2:size(rating_Trajectory{k,1}, 1)
+            if ~isnan(feelRT)
+                % when there was a response, there were always more mouse
+                % positions recorded after the response
+                % search forward until the response point
+                search_end = max(round(feelRT*60), 2);    % avoid errors
+            else
+                % there was no response
+                % search forward until the end of the recording
+                search_end = size(rating_Trajectory{k,1}, 1);
+            end
+            % search first move
+            for l = 2:search_end
                 if (rating_Trajectory{k,1}(l,1) ~= rating_Trajectory{k,1}(l-1,1))...
                         || (rating_Trajectory{k,1}(l,2) ~= rating_Trajectory{k,1}(l-1,2))
                     break
@@ -120,32 +124,24 @@ for i = 1:endSub
                 motion_onset_feeling(k) = NaN;
                 motion_dur_feeling(k) = NaN;
             else
+                % mouse moved
                 motion_onset_feeling(k) = (l-1)/60;
-                if isnan(feelRT)
-                    % no response
-                    motion_dur_feeling(k) = RT_feeling_adj(k) - motion_onset_feeling(k);
+                if ~isnan(feelRT)
+                    motion_dur_feeling(k) = feelRT - motion_onset_feeling(k);
                 else
-                    motion_dur_feeling(k) = RT_feeling(k) - motion_onset_feeling(k);
+                    motion_dur_feeling(k) = RT_feeling_adj(k) - motion_onset_feeling(k);
                 end
             end
-            
             
             % For expectation
             expectRT = csvData.event04_expect_RT(k);
             if ~isnan(expectRT)
+                % participants provided response
+                RT_expectation(k) = expectRT;
                 RT_expectation_adj(k) = NaN;
-                if expectRT <= 3.5
-                    % sample an additional 0.5*60 = 30 times
-                    expectation_end_x(k) = rating_Trajectory{k,2}(end-30,1);
-                    expectation_end_y(k) = rating_Trajectory{k,2}(end-30,2);
-                    RT_expectation(k) = expectRT;
-                elseif expectRT > 3.5
-                    % sample an additional (4-RT)*60 times
-                    addsam = round((4-expectRT)*60);
-                    expectation_end_x(k) = rating_Trajectory{k,2}(floor(end-addsam),1);
-                    expectation_end_y(k) = rating_Trajectory{k,2}(floor(end-addsam),2);
-                    RT_expectation(k) = expectRT;
-                end
+                end_point = round(expectRT*60);  % the index of the last mouse position
+                expectation_end_x(k) = rating_Trajectory{k, 2}(end_point, 1);
+                expectation_end_y(k) = rating_Trajectory{k, 2}(end_point, 2);
             else
                 % no recorded RT, impute the RT (RT_adj) by seeking the last "transition point"
                 RT_expectation(k) = NaN;
@@ -169,7 +165,14 @@ for i = 1:endSub
                 end
             end
             % find decision onset time
-            for l = 2:size(rating_Trajectory{k,2}, 1)
+            if ~isnan(expectRT)
+                % same logic as for feeling
+                search_end = max(round(expectRT*60), 2);    % avoid errors
+            else
+                search_end = size(rating_Trajectory{k,2}, 1);
+            end
+            % search first move
+            for l = 2:search_end
                 if (rating_Trajectory{k,2}(l,1) ~= rating_Trajectory{k,2}(l-1,1))...
                         || (rating_Trajectory{k,2}(l,2) ~= rating_Trajectory{k,2}(l-1,2))
                     break
@@ -181,15 +184,15 @@ for i = 1:endSub
                 motion_onset_expectation(k) = NaN;
                 motion_dur_expectation(k) = NaN;
             else
+                % mouse moved
                 motion_onset_expectation(k) = (l-1)/60;
-                if isnan(expectRT)
-                    % no response
-                    motion_dur_expectation(k) = RT_expectation_adj(k) - motion_onset_expectation(k);
+                if ~isnan(expectRT)
+                    motion_dur_expectation(k) = expectRT - motion_onset_expectation(k);
                 else
-                    motion_dur_expectation(k) = RT_expectation(k) - motion_onset_expectation(k);
+                    motion_dur_expectation(k) = RT_expectation_adj(k) - motion_onset_expectation(k);
                 end
             end
-            
+
             % extract experiment conditions (situation and context)
             if k <= 9
                 situation_chunk = DesignTable.Situation(DesignTable.Narrative == narratives{r}(rem(i-1, 2)+1));
